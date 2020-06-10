@@ -4,6 +4,12 @@ A Python class with multiple methods to visualize geographical data.
 This class is designed to read geographical height data in a grid-ASCII format, specifically Data from the [DGM](https://gdz.bkg.bund.de/index.php/default/catalog/product/view/id/756/s/digitales-gelandemodell-gitterweite-200-m-dgm200/category/8/?___store=default).
 If you intend to use it for data in other formats, certain changes to the code might be necessary.
 
+Methods to visualize currently include:
+- Convert height data to RGB-Range image (`.draw_rgb_gradient()`)
+- Convert height data to grayscale image (`.draw_grayscale()`)
+- Simulate a higher sealevel (`.draw_sealevel()` and `.draw_realwater()`)
+- Convert the height data to a 3D file (Wavefront-Obj) (`.generate_obj()`)
+
 # Installation
 It should be noted that this code was designed for Windows environment and some parts rely on graphical interfaces created with Tkinter.
 
