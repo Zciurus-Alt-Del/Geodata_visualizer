@@ -233,6 +233,7 @@ class Geo:
         g = 255 - b - r
         return r, g, b
 
+
     def _replace_color(self, this_one, with_this_one):
         pixelarray = list(self._image.getdata())
         n_pixel = 0
@@ -267,7 +268,8 @@ class Geo:
         :return:
         """
         if self._image is None and not force_overwrite:
-            self._image = Image.new('RGBA', (self._file_ncols, self._file_nrows))
+            #self._image = Image.new('RGBA', (self._file_ncols, self._file_nrows)) # replaced with shape
+            self._image = Image.new('RGBA', self.array.shape)
             self._draw = ImageDraw.Draw(self._image)
 
     def _draw_text(self, text, xy=(0, 0)):
@@ -356,10 +358,12 @@ class Geo:
             bar.next()
         bar.finish()
 
-    def draw_sealevel_flood(self, height_above_sealevel: float, water_source_coord=(0, 0), water_color=(132, 194, 251, 255), land_color=(252, 255, 212, 255),
+    def old_draw_sealevel_flood(self, height_above_sealevel: float, water_source_coord=(0, 0), water_color=(132, 194, 251, 255), land_color=(252, 255, 212, 255),
                             name_sealevel_at_top_left: bool = True):
         """
-        Creates a more map where spots that are lower than the given parameter AND that are connected to the sea are filled.
+        Creates a map where a flood originating from water_source_coord is simulated.
+        Internally all spots lower than height_above_sealevel are colored with a temporary color, then a floodfill drawing tool is applied
+        only replacing the temporary color.
         :param height_above_sealevel: Cells must lie lower than this height
         :param water_source_coord: Cells must be connected to this coordinate
         :param water_color: RGBA
@@ -369,7 +373,7 @@ class Geo:
         """
         self._new_canvas()
         tempcolor = (0, 255, 0, 255)
-        bar = Bar('Drawing', max=self._file_nrows)
+        bar = Bar('Sketching', max=self._file_nrows)
         for y, line in enumerate(self.array):
             for x, field in enumerate(line):
                 if field < height_above_sealevel:
@@ -380,14 +384,63 @@ class Geo:
             bar.next()
         bar.finish()
 
-        bar = Bar('Flooding', max=100)
+        bar = Bar('Flooding', max=1)
+        #bar.next()
+        ImageDraw.floodfill(self._image, water_source_coord, value=water_color)
+        self._image.save('TEMPEXPORT.png')
         bar.next()
-        ImageDraw.floodfill(self._image, (2, 2), value=water_color)
         bar.finish()
 
-        self._replace_color(tempcolor, land_color)
+
         if name_sealevel_at_top_left:
             self._draw_text(str(height_above_sealevel))
+
+    def draw_sealevel_flood(self, height, water_source_coord_yx: tuple = (0, 0), water_color=(132, 194, 251), land_color=(252, 255, 212),
+                            name_sealevel_at_top_left: bool = True):
+
+        sourceheight = self.array[water_source_coord_yx[0], water_source_coord_yx[1]]
+        if sourceheight > height:
+            raise GeoError(f'Water source coord {water_source_coord_yx} is not below the height {height} ({sourceheight} > {height})')
+
+        tempcolor = (0, 255, 0)
+
+        # alles mit landcolor initialisieren
+        #img_array = np.zeros((self.array.shape[0], self.array.shape[1], 3), dtype=np.uint8)
+        img_array = np.full((self.array.shape[0], self.array.shape[1], 3), land_color, dtype=np.uint8)
+
+        print('array created, now calcing')
+
+        # alles unter height mit tempcolor füllen
+        is_below_array = self.array <= height
+        del self.array
+        self.array = None
+        img_array[is_below_array, :] = np.array(tempcolor).reshape(1, 1, 3)
+        print('image array created, now creating image')
+
+
+        self._image = Image.fromarray(img_array, mode='RGB')
+        del img_array
+        del is_below_array
+
+        #print('aborting before floodfill')
+        #return
+
+        #print('Color at selected source is', img_array[water_source_coord_yx[0], water_source_coord_yx[1]])
+        # von water_source_coord aus alles mit wasser füllen
+        ImageDraw.floodfill(self._image, water_source_coord_yx, value=water_color)
+
+        print('aborting before replacment.')
+        return
+        # nach dem füllen die tempcolor zu land machen
+        width = self._image.size[0]
+        height = self._image.size[1]
+        for i in range(0, width):  # process all pixels
+            for j in range(0, height):
+                data = self._image.getpixel((i, j))
+                # print(data) #(255, 255, 255)
+                if (data[0] == tempcolor[0] and data[1] == tempcolor[1] and data[2] == tempcolor[2]):
+                    self._image.putpixel((i, j), land_color)
+
 
     def export(self, filename, filetype='auto'):
         if filetype == 'auto':
